@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 import http from "http";
 import express from "express";
+import { log } from "console";
 
 const app = express();
 
@@ -9,29 +10,40 @@ const io = new Server(server, {
 	cors: {
 		origin: ["http://localhost:3000"],
 		methods: ["GET", "POST"],
+		
 	},
 });
 
+const userSocketMap = {}; // {userId: socketId}
 export const getReceiverSocketId = (receiverId) => {
 	return userSocketMap[receiverId];
 };
-
-const userSocketMap = {}; // {userId: socketId}
-
 io.on("connection", (socket) => {
 	console.log("a user connected", socket.id);
 
 	const userId = socket.handshake.query.userId;
-	if (userId != "undefined") userSocketMap[userId] = socket.id;
+	console.log(userId);
+	if (userId !== undefined) { // Correctly check if userId is undefined
+		userSocketMap[userId] = socket.id;
+	} else {
+		console.warn("User did not provide a valid userId");
+	}
 
-	// io.emit() is used to send events to all the connected clients
-	io.emit("getOnlineUsers", Object.keys(userSocketMap));
+	// Efficiently manage event emission
+	let onlineUsers = Object.keys(userSocketMap);
+	console.log(onlineUsers);
+	if (onlineUsers.length > 0) {
+	  io.emit("getOnlineUsers", onlineUsers);
+	}
+  
 
-	// socket.on() is used to listen to the events. can be used both on client and server side
 	socket.on("disconnect", () => {
 		console.log("user disconnected", socket.id);
-		delete userSocketMap[userId];
-		io.emit("getOnlineUsers", Object.keys(userSocketMap));
+		delete userSocketMap[userId]; // Ensure userId is defined here too
+		onlineUsers = Object.keys(userSocketMap);
+		if (onlineUsers.length > 0) {
+			io.emit("getOnlineUsers", onlineUsers);
+		}
 	});
 });
 
